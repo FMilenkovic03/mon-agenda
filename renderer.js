@@ -6,10 +6,12 @@ let currentYear = today.getFullYear();
 let currentMonth = today.getMonth();
 let selectedDay = today.getDate();
 let selectedType = 'task';
+let selectedColor = '';
 let editingId = null;
 let events = [];
 let currentView = 'month';
 let refDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+let searchQuery = '';
 
 // ── INIT ──────────────────────────────────────
 async function init() {
@@ -20,34 +22,66 @@ async function init() {
 
 // ── EVENT LISTENERS ───────────────────────────
 function bindEvents() {
-  // Navigation
   document.getElementById('btnPrev').addEventListener('click', navigatePrev);
   document.getElementById('btnNext').addEventListener('click', navigateNext);
   document.getElementById('btnMiniPrev').addEventListener('click', navigatePrev);
   document.getElementById('btnMiniNext').addEventListener('click', navigateNext);
 
-  // Vues
   document.querySelectorAll('.view-btn').forEach(btn => {
     btn.addEventListener('click', () => setView(btn.dataset.view));
   });
 
-  // Nouveau
   document.getElementById('btnNew').addEventListener('click', () => openModal());
-
-  // Modal
   document.getElementById('btnModalClose').addEventListener('click', closeModal);
   document.getElementById('btnCancel').addEventListener('click', closeModal);
   document.getElementById('btnSave').addEventListener('click', saveEvent);
   document.getElementById('btnDelete').addEventListener('click', deleteEvent);
 
-  // Fermer en cliquant l'overlay
   document.getElementById('modalOverlay').addEventListener('click', (e) => {
     if (e.target.id === 'modalOverlay') closeModal();
   });
 
-  // Type selector
   document.querySelectorAll('.type-opt').forEach(btn => {
     btn.addEventListener('click', () => selectType(btn.dataset.type));
+  });
+
+  // Color picker
+  document.querySelectorAll('.color-opt').forEach(btn => {
+    btn.addEventListener('click', () => selectColor(btn.dataset.color));
+  });
+
+  // Repeat — affiche/masque la date de fin
+  document.getElementById('evRepeat').addEventListener('change', (e) => {
+    document.getElementById('repeatEndRow').classList.toggle('visible', e.target.value !== '');
+  });
+
+  // Search
+  const searchInput = document.getElementById('searchInput');
+  const searchClear = document.getElementById('searchClear');
+
+  searchInput.addEventListener('input', (e) => {
+    searchQuery = e.target.value.trim();
+    searchClear.classList.toggle('visible', searchQuery.length > 0);
+    if (searchQuery.length > 0) {
+      renderSearchResults(searchQuery);
+      document.getElementById('searchResults').classList.add('open');
+    } else {
+      document.getElementById('searchResults').classList.remove('open');
+    }
+  });
+
+  searchClear.addEventListener('click', () => {
+    searchInput.value = '';
+    searchQuery = '';
+    searchClear.classList.remove('visible');
+    document.getElementById('searchResults').classList.remove('open');
+  });
+
+  // Fermer search en cliquant ailleurs
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.search-wrapper')) {
+      document.getElementById('searchResults').classList.remove('open');
+    }
   });
 }
 
@@ -85,6 +119,45 @@ function navigateNext() {
     refDate = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate() + 1);
   }
   render();
+}
+
+// ── RÉPÉTITION ────────────────────────────────
+function expandEvents(evList, fromDate, toDate) {
+  const result = [];
+  const from = dateToStr(fromDate);
+  const to = dateToStr(toDate);
+
+  evList.forEach(ev => {
+    if (!ev.repeat) {
+      if (ev.date >= from && ev.date <= to) result.push(ev);
+      return;
+    }
+
+    const start = new Date(ev.date + 'T00:00:00');
+    const end = ev.repeatEnd ? new Date(ev.repeatEnd + 'T00:00:00') : new Date(toDate + 'T00:00:00');
+    const rangeEnd = end < new Date(to + 'T00:00:00') ? end : new Date(to + 'T00:00:00');
+
+    let current = new Date(start);
+    while (current <= rangeEnd) {
+      const dateStr = dateToStr(current);
+      if (dateStr >= from && dateStr <= to) {
+        result.push({ ...ev, date: dateStr, _recurring: true, _originalId: ev.id });
+      }
+      switch (ev.repeat) {
+        case 'daily':   current.setDate(current.getDate() + 1); break;
+        case 'weekly':  current.setDate(current.getDate() + 7); break;
+        case 'monthly': current.setMonth(current.getMonth() + 1); break;
+        case 'yearly':  current.setFullYear(current.getFullYear() + 1); break;
+        default: current = new Date(rangeEnd.getTime() + 1);
+      }
+    }
+  });
+
+  return result;
+}
+
+function getVisibleEventsRange(fromDate, toDate) {
+  return expandEvents(events, fromDate, toDate);
 }
 
 // ── RENDER PRINCIPAL ──────────────────────────
@@ -127,6 +200,10 @@ function renderMonth(area) {
   });
   area.appendChild(headers);
 
+  const firstCell = new Date(currentYear, currentMonth, 1);
+  const lastCell = new Date(currentYear, currentMonth + 1, 6);
+  const visibleEvs = getVisibleEventsRange(firstCell, lastCell);
+
   const grid = document.createElement('div');
   grid.className = 'cal-grid';
 
@@ -142,12 +219,8 @@ function renderMonth(area) {
     num.textContent = c.day;
     cell.appendChild(num);
 
-    events.filter(e => e.date === c.dateStr).slice(0, 3).forEach(ev => {
-      const el = document.createElement('div');
-      el.className = `cal-event type-${ev.type}`;
-      el.textContent = (ev.time ? ev.time + ' ' : '') + ev.title; // textContent = sûr
-      el.addEventListener('click', e => { e.stopPropagation(); openModal(null, ev); });
-      cell.appendChild(el);
+    visibleEvs.filter(e => e.date === c.dateStr).slice(0, 3).forEach(ev => {
+      cell.appendChild(makeEventChip(ev, 'cal-event'));
     });
 
     cell.addEventListener('click', () => {
@@ -164,12 +237,13 @@ function renderMonth(area) {
 function renderWeek(area, numDays) {
   const HOUR_H = 52;
   const startDate = numDays === 1 ? new Date(refDate) : getMondayOf(refDate);
+  const endDate = new Date(startDate); endDate.setDate(startDate.getDate() + numDays - 1);
   const days = Array.from({length: numDays}, (_, i) => {
     const d = new Date(startDate); d.setDate(startDate.getDate() + i); return d;
   });
   const colClass = numDays === 7 ? 'cols-7' : 'cols-1';
+  const visibleEvs = getVisibleEventsRange(startDate, endDate);
 
-  // Header jours
   const header = document.createElement('div');
   header.className = `week-header ${colClass}`;
   const spacer = document.createElement('div');
@@ -192,12 +266,9 @@ function renderWeek(area, numDays) {
     dh.appendChild(dayName);
     dh.appendChild(dayNum);
 
-    // Events sans heure
-    events.filter(e => e.date === dateToStr(d) && !e.time).forEach(ev => {
-      const el = document.createElement('div');
-      el.className = `allday-event type-${ev.type}`;
-      el.textContent = ev.title; // textContent = sûr
-      el.addEventListener('click', e => { e.stopPropagation(); openModal(null, ev); });
+    visibleEvs.filter(e => e.date === dateToStr(d) && !e.time).forEach(ev => {
+      const el = makeEventChip(ev, 'allday-event');
+      el.addEventListener('click', e => { e.stopPropagation(); openModal(null, getOriginalEvent(ev)); });
       dh.appendChild(el);
     });
 
@@ -206,11 +277,9 @@ function renderWeek(area, numDays) {
   });
   area.appendChild(header);
 
-  // Body
   const body = document.createElement('div');
   body.className = 'week-body';
 
-  // Colonne heures
   const timeCol = document.createElement('div');
   timeCol.className = 'week-time-col';
   const timeInner = document.createElement('div');
@@ -224,7 +293,6 @@ function renderWeek(area, numDays) {
   timeCol.appendChild(timeInner);
   body.appendChild(timeCol);
 
-  // Colonnes jours
   const colsWrapper = document.createElement('div');
   colsWrapper.className = 'week-cols-wrapper';
   const colsScroll = document.createElement('div');
@@ -253,25 +321,30 @@ function renderWeek(area, numDays) {
       openModal(dateToStr(d), null, `${String(Math.min(hour,23)).padStart(2,'0')}:${min}`);
     });
 
-    events.filter(e => e.date === dateToStr(d) && e.time).forEach(ev => {
+    visibleEvs.filter(e => e.date === dateToStr(d) && e.time).forEach(ev => {
       const [h, m] = ev.time.split(':').map(Number);
       const top = h * HOUR_H + (m / 60) * HOUR_H;
       const el = document.createElement('div');
       el.className = `week-event type-${ev.type}`;
       el.style.top = top + 'px';
       el.style.height = HOUR_H + 'px';
+      if (ev.color) {
+        el.style.background = hexToRgba(ev.color, 0.22);
+        el.style.color = ev.color;
+        el.style.borderLeftColor = ev.color;
+      }
 
       const title = document.createElement('div');
       title.className = 'week-event-title';
-      title.textContent = ev.title; // textContent = sûr
+      title.textContent = ev.title;
 
       const time = document.createElement('div');
       time.className = 'week-event-time';
-      time.textContent = ev.time; // textContent = sûr
+      time.textContent = ev.time;
 
       el.appendChild(title);
       el.appendChild(time);
-      el.addEventListener('click', e => { e.stopPropagation(); openModal(null, ev); });
+      el.addEventListener('click', e => { e.stopPropagation(); openModal(null, getOriginalEvent(ev)); });
       col.appendChild(el);
     });
 
@@ -289,7 +362,6 @@ function renderWeek(area, numDays) {
   body.appendChild(colsWrapper);
   area.appendChild(body);
 
-  // Sync scroll
   colsScroll.addEventListener('scroll', () => {
     timeInner.style.transform = `translateY(-${colsScroll.scrollTop}px)`;
   });
@@ -299,7 +371,104 @@ function renderWeek(area, numDays) {
   }, 50);
 }
 
+// ── CHIP D'ÉVÉNEMENT ──────────────────────────
+function makeEventChip(ev, className) {
+  const el = document.createElement('div');
+  el.className = `${className} type-${ev.type}`;
+  el.textContent = (ev.time && className === 'cal-event' ? ev.time + ' ' : '') + ev.title;
+  if (ev._recurring) el.title = '🔁 Récurrent';
+  if (ev.color) {
+    el.style.background = hexToRgba(ev.color, 0.2);
+    el.style.color = ev.color;
+  }
+  el.addEventListener('click', e => { e.stopPropagation(); openModal(null, getOriginalEvent(ev)); });
+  return el;
+}
+
+function getOriginalEvent(ev) {
+  if (ev._recurring) return events.find(e => e.id === ev._originalId) || ev;
+  return ev;
+}
+
+// ── SEARCH ────────────────────────────────────
+function renderSearchResults(query) {
+  const results = document.getElementById('searchResults');
+  results.innerHTML = '';
+
+  const q = query.toLowerCase();
+  const matches = events.filter(ev =>
+    ev.title.toLowerCase().includes(q) ||
+    (ev.note && ev.note.toLowerCase().includes(q))
+  ).slice(0, 10);
+
+  const header = document.createElement('div');
+  header.className = 'search-header';
+  header.textContent = `${matches.length} résultat${matches.length !== 1 ? 's' : ''}`;
+  results.appendChild(header);
+
+  if (matches.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'search-empty';
+    empty.textContent = 'Aucun événement trouvé';
+    results.appendChild(empty);
+    return;
+  }
+
+  matches.forEach(ev => {
+    const item = document.createElement('div');
+    item.className = 'search-item';
+
+    const dot = document.createElement('div');
+    dot.className = 'search-dot';
+    dot.style.background = ev.color || getTypeColor(ev.type);
+
+    const info = document.createElement('div');
+    info.className = 'search-item-info';
+
+    const title = document.createElement('div');
+    title.className = 'search-item-title';
+    title.textContent = ev.title;
+
+    const meta = document.createElement('div');
+    meta.className = 'search-item-meta';
+    const d = new Date(ev.date + 'T00:00:00');
+    meta.textContent = `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}${ev.time ? ' · ' + ev.time : ''}`;
+
+    info.appendChild(title);
+    info.appendChild(meta);
+    item.appendChild(dot);
+    item.appendChild(info);
+
+    item.addEventListener('click', () => {
+      document.getElementById('searchResults').classList.remove('open');
+      document.getElementById('searchInput').value = '';
+      document.getElementById('searchClear').classList.remove('visible');
+      const d = new Date(ev.date + 'T00:00:00');
+      currentMonth = d.getMonth();
+      currentYear = d.getFullYear();
+      selectedDay = d.getDate();
+      refDate = new Date(d);
+      setView('month');
+      openModal(null, ev);
+    });
+
+    results.appendChild(item);
+  });
+}
+
+function getTypeColor(type) {
+  const colors = { task: '#3ecfaa', event: '#7c6af5', reminder: '#f07070' };
+  return colors[type] || '#9d99b8';
+}
+
 // ── HELPERS ───────────────────────────────────
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1,3), 16);
+  const g = parseInt(hex.slice(3,5), 16);
+  const b = parseInt(hex.slice(5,7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 function fmtDate(y, m, d) {
   const date = new Date(y, m, d);
   return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
@@ -366,7 +535,9 @@ function renderUpcoming() {
   list.innerHTML = '';
   const todayStr = dateToStr(today);
   const tomorrowStr = fmtDate(today.getFullYear(), today.getMonth(), today.getDate()+1);
-  const upcoming = events
+  const futureDate = new Date(today); futureDate.setDate(today.getDate() + 60);
+
+  const upcoming = getVisibleEventsRange(today, futureDate)
     .filter(e => e.date >= todayStr)
     .sort((a,b) => a.date.localeCompare(b.date) || (a.time||'').localeCompare(b.time||''))
     .slice(0, 6);
@@ -382,6 +553,7 @@ function renderUpcoming() {
   upcoming.forEach(ev => {
     const el = document.createElement('div');
     el.className = `upcoming-item type-${ev.type}`;
+    if (ev.color) el.style.borderLeftColor = ev.color;
 
     const d = new Date(ev.date + 'T00:00:00');
     const label = ev.date === todayStr ? "Aujourd'hui"
@@ -390,15 +562,15 @@ function renderUpcoming() {
 
     const titleEl = document.createElement('div');
     titleEl.className = 'ev-title';
-    titleEl.textContent = ev.title; // textContent = sûr
+    titleEl.textContent = ev.title + (ev._recurring ? ' 🔁' : '');
 
     const timeEl = document.createElement('div');
     timeEl.className = 'ev-time';
-    timeEl.textContent = label + (ev.time ? ' · ' + ev.time : ''); // textContent = sûr
+    timeEl.textContent = label + (ev.time ? ' · ' + ev.time : '');
 
     el.appendChild(titleEl);
     el.appendChild(timeEl);
-    el.addEventListener('click', () => openModal(null, ev));
+    el.addEventListener('click', () => openModal(null, getOriginalEvent(ev)));
     list.appendChild(el);
   });
 }
@@ -411,17 +583,24 @@ function openModal(dateStr = null, existingEvent = null, timeStr = '') {
   document.getElementById('evTitle').value = existingEvent ? existingEvent.title : '';
   document.getElementById('evTime').value = existingEvent ? existingEvent.time : timeStr;
   document.getElementById('evNote').value = existingEvent ? (existingEvent.note || '') : '';
-  document.getElementById('evReminder').value = existingEvent ? existingEvent.reminder : '';
+  document.getElementById('evReminder').value = existingEvent ? (existingEvent.reminder || '') : '';
+  document.getElementById('evRepeat').value = existingEvent ? (existingEvent.repeat || '') : '';
+  document.getElementById('evRepeatEnd').value = existingEvent ? (existingEvent.repeatEnd || '') : '';
+  document.getElementById('repeatEndRow').classList.toggle('visible', !!(existingEvent && existingEvent.repeat));
   selectType(existingEvent ? existingEvent.type : 'task');
+  selectColor(existingEvent ? (existingEvent.color || '') : '');
   document.getElementById('btnDelete').style.display = existingEvent ? 'flex' : 'none';
   document.getElementById('modalOverlay').classList.add('open');
 }
 
 function closeModal() {
   document.getElementById('modalOverlay').classList.remove('open');
-  ['evTitle','evTime','evNote'].forEach(id => document.getElementById(id).value = '');
+  ['evTitle','evTime','evNote','evRepeatEnd'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('evReminder').value = '';
+  document.getElementById('evRepeat').value = '';
+  document.getElementById('repeatEndRow').classList.remove('visible');
   selectType('task');
+  selectColor('');
 }
 
 function selectType(type) {
@@ -432,17 +611,31 @@ function selectType(type) {
   });
 }
 
+function selectColor(color) {
+  selectedColor = color;
+  document.querySelectorAll('.color-opt').forEach(btn => {
+    btn.classList.toggle('selected', btn.dataset.color === color);
+    if (btn.dataset.color && btn.dataset.color !== '') {
+      btn.style.background = btn.dataset.color;
+    }
+  });
+}
+
 async function saveEvent() {
   const title = document.getElementById('evTitle').value.trim();
   if (!title) { document.getElementById('evTitle').focus(); return; }
+  const repeat = document.getElementById('evRepeat').value;
   const ev = {
     id: editingId || Date.now(),
     title,
     type: selectedType,
+    color: selectedColor,
     date: document.getElementById('evDate').value,
     time: document.getElementById('evTime').value,
     note: document.getElementById('evNote').value,
     reminder: document.getElementById('evReminder').value,
+    repeat: repeat || null,
+    repeatEnd: repeat ? document.getElementById('evRepeatEnd').value : null,
     _notified: false
   };
   events = editingId ? events.map(e => e.id === editingId ? ev : e) : [...events, ev];

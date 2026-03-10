@@ -1,106 +1,148 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'">
-    <title>Mon Agenda</title>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'">
+<title>Mon Agenda</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-    
-    <div class="topbar">
-        <div class="logo"><div class="logo-dot"></div>Mon Agenda</div>
-        <div class="topbar-center">
-            <div class="month-nav">
-                <button class="nav-btn" id="btnPrev">‹</button>
-                <div class="month-label" id="monthLabel"></div>
-                <button class="nav-btn" id="btnNext">›</button>
-            </div>
-        </div>
-        <div class="topbar-right">
-            <div class="view-toggle">
-                <button class="view-btn active" data-view="month">Mois</button>
-                <button class="view-btn" data-view="week">Semaine</button>
-                <button class="view-btn" data-view="day">Jour</button>
-            </div>
-            <button class="btn-new" id="btnNew">＋ Nouveau</button>
-        </div>
+
+<div class="topbar">
+  <div class="logo"><div class="logo-dot"></div>Mon Agenda</div>
+  <div class="topbar-center">
+    <div class="month-nav">
+      <button class="nav-btn" id="btnPrev">‹</button>
+      <div class="month-label" id="monthLabel"></div>
+      <button class="nav-btn" id="btnNext">›</button>
     </div>
-    
-    <div class="main">
-        <div class="sidebar">
-            <div class="mini-cal">
-                <div class="mini-header">
-                    <button id="btnMiniPrev">‹</button>
-                    <span id="miniMonthLabel"></span>
-                    <button id="btnMiniNext">›</button>
-                </div>
-                <div class="mini-grid" id="miniGrid"></div>
-            </div>
-            <div class="upcoming">
-                <div class="section-title">À venir</div>
-                <div id="upcomingList"></div>
-            </div>
+  </div>
+  <div class="topbar-right">
+    <div class="view-toggle">
+      <button class="view-btn active" data-view="month">Mois</button>
+      <button class="view-btn" data-view="week">Semaine</button>
+      <button class="view-btn" data-view="day">Jour</button>
+    </div>
+    <button class="btn-new" id="btnNew">＋ Nouveau</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="mini-cal">
+      <div class="mini-header">
+        <button id="btnMiniPrev">‹</button>
+        <span id="miniMonthLabel"></span>
+        <button id="btnMiniNext">›</button>
+      </div>
+      <div class="mini-grid" id="miniGrid"></div>
+    </div>
+    <div class="upcoming">
+      <div class="section-title">À venir</div>
+      <div id="upcomingList"></div>
+    </div>
+  </div>
+  <div class="calendar-area" id="calendarArea"></div>
+</div>
+
+<!-- SEARCH RESULTS OVERLAY -->
+<div class="search-overlay" id="searchOverlay">
+  <div class="search-results" id="searchResults"></div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">Nouvel événement</div>
+      <button class="modal-close" id="btnModalClose">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>Type</label>
+        <div class="type-selector">
+          <button class="type-opt active-task" data-type="task">✓ Tâche</button>
+          <button class="type-opt" data-type="event">◆ Événement</button>
+          <button class="type-opt" data-type="reminder">⏰ Rappel</button>
         </div>
-        <div class="calendar-area" id="calendarArea"></div>
-    </div>
-    
-    <!-- MODAL -->
-    <div class="modal-overlay" id="modalOverlay">
-        <div class="modal">
-            <div class="modal-header">
-                <div class="modal-title" id="modalTitle">Nouvel événement</div>
-                <button class="modal-close" id="btnModalClose">×</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-row">
-                    <label>Type</label>
-                    <div class="type-selector">
-                        <button class="type-opt active-task" data-type="task">✓ Tâche</button>
-                        <button class="type-opt" data-type="event">◆ Événement</button>
-                        <button class="type-opt" data-type="reminder">⏰ Rappel</button>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <label>Titre</label>
-                    <input type="text" id="evTitle" placeholder="Nom de l'événement...">
-                </div>
-                <div class="form-row-2">
-                    <div class="form-row"><label>Date</label><input type="date" id="evDate"></div>
-                    <div class="form-row"><label>Heure</label><input type="time" id="evTime"></div>
-                </div>
-                <div class="form-row">
-                    <label>Note</label>
-                    <textarea id="evNote" rows="2" placeholder="Détails optionnels..."></textarea>
-                </div>
-                <div class="form-row">
-                    <label>Rappel</label>
-                    <select id="evReminder">
-                        <option value="">Pas de rappel</option>
-                        <option value="5">5 min avant</option>
-                        <option value="15">15 min avant</option>
-                        <option value="30">30 min avant</option>
-                        <option value="60">1 heure avant</option>
-                        <option value="1440">1 jour avant</option>
-                    </select>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn-delete" id="btnDelete">🗑 Supprimer</button>
-                <div class="modal-footer-actions">
-                    <button class="btn-cancel" id="btnCancel">Annuler</button>
-                    <button class="btn-save" id="btnSave">Enregistrer</button>
-                </div>
-            </div>
+      </div>
+      <div class="form-row">
+        <label>Titre</label>
+        <input type="text" id="evTitle" placeholder="Nom de l'événement...">
+      </div>
+      <div class="form-row-2">
+        <div class="form-row"><label>Date</label><input type="date" id="evDate"></div>
+        <div class="form-row"><label>Heure</label><input type="time" id="evTime"></div>
+      </div>
+      <div class="form-row">
+        <label>Couleur</label>
+        <div class="color-picker" id="colorPicker">
+          <button class="color-opt" data-color="" title="Défaut"></button>
+          <button class="color-opt" data-color="#e85d5d" title="Rouge"></button>
+          <button class="color-opt" data-color="#e8935d" title="Orange"></button>
+          <button class="color-opt" data-color="#d4c23a" title="Jaune"></button>
+          <button class="color-opt" data-color="#5db85d" title="Vert"></button>
+          <button class="color-opt" data-color="#5d9ee8" title="Bleu"></button>
+          <button class="color-opt" data-color="#a05de8" title="Violet"></button>
+          <button class="color-opt" data-color="#e85da0" title="Rose"></button>
+          <button class="color-opt" data-color="#5de8d4" title="Cyan"></button>
         </div>
+      </div>
+      <div class="form-row">
+        <label>Répétition</label>
+        <select id="evRepeat">
+          <option value="">Pas de répétition</option>
+          <option value="daily">Chaque jour</option>
+          <option value="weekly">Chaque semaine</option>
+          <option value="monthly">Chaque mois</option>
+          <option value="yearly">Chaque année</option>
+        </select>
+      </div>
+      <div class="form-row" id="repeatEndRow">
+        <label>Fin de répétition</label>
+        <input type="date" id="evRepeatEnd">
+      </div>
+      <div class="form-row">
+        <label>Note</label>
+        <textarea id="evNote" rows="2" placeholder="Détails optionnels..."></textarea>
+      </div>
+      <div class="form-row">
+        <label>Rappel</label>
+        <select id="evReminder">
+          <option value="">Pas de rappel</option>
+          <option value="5">5 min avant</option>
+          <option value="15">15 min avant</option>
+          <option value="30">30 min avant</option>
+          <option value="60">1 heure avant</option>
+          <option value="1440">1 jour avant</option>
+        </select>
+      </div>
     </div>
-    
-    <div class="toast" id="toast">
-        <span id="toastIcon">🔔</span>
-        <span id="toastMsg"></span>
+    <div class="modal-footer">
+      <button class="btn-delete" id="btnDelete">🗑 Supprimer</button>
+      <div class="modal-footer-actions">
+        <button class="btn-cancel" id="btnCancel">Annuler</button>
+        <button class="btn-save" id="btnSave">Enregistrer</button>
+      </div>
     </div>
-    
-    <script src="renderer.js"></script>
+  </div>
+</div>
+
+<div class="toast" id="toast">
+  <span id="toastIcon">🔔</span>
+  <span id="toastMsg"></span>
+</div>
+
+<div class="search-wrapper">
+  <div class="search-bar">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="searchInput" placeholder="Rechercher...">
+    <button class="search-clear" id="searchClear">×</button>
+  </div>
+  <div class="search-results" id="searchResults"></div>
+</div>
+
+<script src="renderer.js"></script>
 </body>
 </html>
