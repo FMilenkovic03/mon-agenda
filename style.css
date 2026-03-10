@@ -29,7 +29,7 @@ body { font-family:'Outfit',sans-serif; background:var(--bg); color:var(--text);
 .search-bar input::placeholder { color:var(--muted); }
 .search-clear { background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; padding:0 2px; display:none; }
 .search-clear.visible { display:block; }
-.search-results { background:var(--surface); border:1px solid var(--border); border-radius:14px; box-shadow:0 8px 32px rgba(0,0,0,0.5); overflow:hidden; max-height:360px; overflow-y:auto; display:none; width:320px; }
+.search-results { background:var(--surface); border:1px solid var(--border); border-radius:14px; box-shadow:0 8px 32px rgba(0,0,0,0.5); overflow:hidden; max-height:360px; overflow-y:auto; display:none; width:320px; z-index:51; position:absolute; bottom:44px; left:0; }
 .search-results.open { display:block; }
 .search-results::-webkit-scrollbar { width:3px; }
 .search-results::-webkit-scrollbar-thumb { background:var(--border); }
