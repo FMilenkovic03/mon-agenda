@@ -38,20 +38,47 @@
       </div>
       <div class="mini-grid" id="miniGrid"></div>
     </div>
+
+    <!-- SETTINGS -->
+    <div class="sidebar-section">
+      <div class="section-title">Affichage</div>
+      <label class="toggle-row">
+        <span>Mois strict</span>
+        <div class="toggle" id="toggleStrict">
+          <div class="toggle-thumb"></div>
+        </div>
+      </label>
+    </div>
+
+    <!-- CATEGORIES -->
+    <div class="sidebar-section">
+      <div class="section-title-row">
+        <div class="section-title">Catégories</div>
+        <button class="btn-add-cat" id="btnAddCat">＋</button>
+      </div>
+      <div id="catList"></div>
+    </div>
+
     <div class="upcoming">
       <div class="section-title">À venir</div>
       <div id="upcomingList"></div>
     </div>
   </div>
+
   <div class="calendar-area" id="calendarArea"></div>
 </div>
 
-<!-- SEARCH RESULTS OVERLAY -->
-<div class="search-overlay" id="searchOverlay">
+<!-- SEARCH -->
+<div class="search-wrapper">
   <div class="search-results" id="searchResults"></div>
+  <div class="search-bar">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="searchInput" placeholder="Rechercher...">
+    <button class="search-clear" id="searchClear">×</button>
+  </div>
 </div>
 
-<!-- MODAL -->
+<!-- MODAL ÉVÉNEMENT -->
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
     <div class="modal-header">
@@ -72,13 +99,29 @@
         <input type="text" id="evTitle" placeholder="Nom de l'événement...">
       </div>
       <div class="form-row-2">
-        <div class="form-row"><label>Date</label><input type="date" id="evDate"></div>
-        <div class="form-row"><label>Heure</label><input type="time" id="evTime"></div>
+        <div class="form-row"><label>Date début</label><input type="date" id="evDate"></div>
+        <div class="form-row"><label>Date fin</label><input type="date" id="evDateEnd"></div>
+      </div>
+      <div class="form-row">
+        <label>Heure</label>
+        <input type="time" id="evTime">
+      </div>
+      <div class="form-row-2">
+        <div class="form-row">
+          <label>Emoji</label>
+          <input type="text" id="evEmoji" placeholder="🎯" maxlength="2">
+        </div>
+        <div class="form-row">
+          <label>Catégorie</label>
+          <select id="evCategory">
+            <option value="">Aucune</option>
+          </select>
+        </div>
       </div>
       <div class="form-row">
         <label>Couleur</label>
         <div class="color-picker" id="colorPicker">
-          <button class="color-opt" data-color="" title="Défaut"></button>
+          <button class="color-opt selected" data-color="" title="Défaut"></button>
           <button class="color-opt" data-color="#e85d5d" title="Rouge"></button>
           <button class="color-opt" data-color="#e8935d" title="Orange"></button>
           <button class="color-opt" data-color="#d4c23a" title="Jaune"></button>
@@ -129,18 +172,42 @@
   </div>
 </div>
 
+<!-- MODAL CATÉGORIE -->
+<div class="modal-overlay" id="catModalOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <div class="modal-title" id="catModalTitle">Nouvelle catégorie</div>
+      <button class="modal-close" id="btnCatModalClose">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>Nom</label>
+        <input type="text" id="catName" placeholder="Ex: Boulot, Sport...">
+      </div>
+      <div class="form-row-2">
+        <div class="form-row">
+          <label>Emoji</label>
+          <input type="text" id="catEmoji" placeholder="🏷️" maxlength="2">
+        </div>
+        <div class="form-row">
+          <label>Couleur</label>
+          <input type="color" id="catColor" value="#7c6af5">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-delete" id="btnCatDelete">🗑 Supprimer</button>
+      <div class="modal-footer-actions">
+        <button class="btn-cancel" id="btnCatCancel">Annuler</button>
+        <button class="btn-save" id="btnCatSave">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast">
   <span id="toastIcon">🔔</span>
   <span id="toastMsg"></span>
-</div>
-
-<div class="search-wrapper">
-  <div class="search-bar">
-    <span class="search-icon">🔍</span>
-    <input type="text" id="searchInput" placeholder="Rechercher...">
-    <button class="search-clear" id="searchClear">×</button>
-  </div>
-  <div class="search-results" id="searchResults"></div>
 </div>
 
 <script src="renderer.js"></script>

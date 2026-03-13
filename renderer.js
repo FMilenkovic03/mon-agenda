@@ -9,15 +9,35 @@ let selectedType = 'task';
 let selectedColor = '';
 let editingId = null;
 let events = [];
+let categories = [];
+let editingCatId = null;
+let strictMonth = false;
 let currentView = 'month';
 let refDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 let searchQuery = '';
 
 // ── INIT ──────────────────────────────────────
 async function init() {
-  events = await window.agenda.loadEvents();
+  const data = await window.agenda.loadEvents();
+  // Support ancien format (tableau simple) ou nouveau format {events, categories, strictMonth}
+  if (Array.isArray(data)) {
+    events = data;
+    categories = [];
+    strictMonth = false;
+  } else {
+    events = data.events || [];
+    categories = data.categories || [];
+    strictMonth = data.strictMonth || false;
+  }
   bindEvents();
+  renderCategoryList();
+  updateToggle();
+  populateCategorySelect();
   render();
+}
+
+async function saveAll() {
+  await window.agenda.saveEvents({ events, categories, strictMonth });
 }
 
 // ── EVENT LISTENERS ───────────────────────────
@@ -45,14 +65,30 @@ function bindEvents() {
     btn.addEventListener('click', () => selectType(btn.dataset.type));
   });
 
-  // Color picker
   document.querySelectorAll('.color-opt').forEach(btn => {
     btn.addEventListener('click', () => selectColor(btn.dataset.color));
   });
 
-  // Repeat — affiche/masque la date de fin
   document.getElementById('evRepeat').addEventListener('change', (e) => {
     document.getElementById('repeatEndRow').classList.toggle('visible', e.target.value !== '');
+  });
+
+  // Toggle mois strict
+  document.getElementById('toggleStrict').addEventListener('click', () => {
+    strictMonth = !strictMonth;
+    updateToggle();
+    saveAll();
+    render();
+  });
+
+  // Catégories
+  document.getElementById('btnAddCat').addEventListener('click', () => openCatModal());
+  document.getElementById('btnCatModalClose').addEventListener('click', closeCatModal);
+  document.getElementById('btnCatCancel').addEventListener('click', closeCatModal);
+  document.getElementById('btnCatSave').addEventListener('click', saveCat);
+  document.getElementById('btnCatDelete').addEventListener('click', deleteCat);
+  document.getElementById('catModalOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'catModalOverlay') closeCatModal();
   });
 
   // Search
@@ -77,12 +113,15 @@ function bindEvents() {
     document.getElementById('searchResults').classList.remove('open');
   });
 
-  // Fermer search en cliquant ailleurs
   document.addEventListener('click', (e) => {
     if (!e.target.closest('.search-wrapper')) {
       document.getElementById('searchResults').classList.remove('open');
     }
   });
+}
+
+function updateToggle() {
+  document.getElementById('toggleStrict').classList.toggle('on', strictMonth);
 }
 
 // ── NAVIGATION ────────────────────────────────
@@ -132,11 +171,9 @@ function expandEvents(evList, fromDate, toDate) {
       if (ev.date >= from && ev.date <= to) result.push(ev);
       return;
     }
-
     const start = new Date(ev.date + 'T00:00:00');
     const end = ev.repeatEnd ? new Date(ev.repeatEnd + 'T00:00:00') : new Date(toDate + 'T00:00:00');
     const rangeEnd = end < new Date(to + 'T00:00:00') ? end : new Date(to + 'T00:00:00');
-
     let current = new Date(start);
     while (current <= rangeEnd) {
       const dateStr = dateToStr(current);
@@ -152,7 +189,6 @@ function expandEvents(evList, fromDate, toDate) {
       }
     }
   });
-
   return result;
 }
 
@@ -160,7 +196,7 @@ function getVisibleEventsRange(fromDate, toDate) {
   return expandEvents(events, fromDate, toDate);
 }
 
-// ── RENDER PRINCIPAL ──────────────────────────
+// ── RENDER ────────────────────────────────────
 function render() {
   updateLabel();
   renderMiniCalendar();
@@ -200,14 +236,24 @@ function renderMonth(area) {
   });
   area.appendChild(headers);
 
+  const cells = strictMonth ? getStrictMonthCells(currentYear, currentMonth) : getMonthCells(currentYear, currentMonth);
   const firstCell = new Date(currentYear, currentMonth, 1);
-  const lastCell = new Date(currentYear, currentMonth + 1, 6);
+  const lastCell = strictMonth
+    ? new Date(currentYear, currentMonth + 1, 0)
+    : new Date(currentYear, currentMonth + 1, 6);
   const visibleEvs = getVisibleEventsRange(firstCell, lastCell);
 
-  const grid = document.createElement('div');
-  grid.className = 'cal-grid';
+  // Calcul des événements multi-jours pour savoir où ils commencent/finissent
+  const multiDayMap = buildMultiDayMap(visibleEvs, cells);
 
-  getMonthCells(currentYear, currentMonth).forEach(c => {
+  const grid = document.createElement('div');
+  grid.className = 'cal-grid' + (strictMonth ? ' strict' : '');
+  if (strictMonth) {
+    const rows = Math.ceil(cells.length / 7);
+    grid.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+  }
+
+  cells.forEach((c, idx) => {
     const cell = document.createElement('div');
     cell.className = 'cal-cell';
     if (c.other) cell.classList.add('other-month');
@@ -219,8 +265,17 @@ function renderMonth(area) {
     num.textContent = c.day;
     cell.appendChild(num);
 
-    visibleEvs.filter(e => e.date === c.dateStr).slice(0, 3).forEach(ev => {
+    // Événements normaux (non multi-jours) du jour
+    const dayEvs = visibleEvs.filter(e => e.date === c.dateStr && !e.dateEnd);
+    dayEvs.slice(0, 3).forEach(ev => {
       cell.appendChild(makeEventChip(ev, 'cal-event'));
+    });
+
+    // Événements multi-jours
+    const mdEvs = multiDayMap[c.dateStr] || [];
+    mdEvs.forEach(({ ev, isStart, isEnd }) => {
+      const el = makeEventChip(ev, 'cal-event multiday' + (isStart ? ' multiday-start' : '') + (isEnd ? ' multiday-end' : ''));
+      cell.appendChild(el);
     });
 
     cell.addEventListener('click', () => {
@@ -231,6 +286,26 @@ function renderMonth(area) {
     grid.appendChild(cell);
   });
   area.appendChild(grid);
+}
+
+// Construit une map dateStr → [{ev, isStart, isEnd}] pour les événements multi-jours
+function buildMultiDayMap(evList, cells) {
+  const map = {};
+  const cellDates = new Set(cells.map(c => c.dateStr));
+
+  evList.filter(e => e.dateEnd && e.dateEnd > e.date).forEach(ev => {
+    let current = new Date(ev.date + 'T00:00:00');
+    const end = new Date(ev.dateEnd + 'T00:00:00');
+    while (current <= end) {
+      const ds = dateToStr(current);
+      if (cellDates.has(ds)) {
+        if (!map[ds]) map[ds] = [];
+        map[ds].push({ ev, isStart: ds === ev.date, isEnd: ds === ev.dateEnd });
+      }
+      current.setDate(current.getDate() + 1);
+    }
+  });
+  return map;
 }
 
 // ── VUE SEMAINE / JOUR ────────────────────────
@@ -328,15 +403,16 @@ function renderWeek(area, numDays) {
       el.className = `week-event type-${ev.type}`;
       el.style.top = top + 'px';
       el.style.height = HOUR_H + 'px';
-      if (ev.color) {
-        el.style.background = hexToRgba(ev.color, 0.22);
-        el.style.color = ev.color;
-        el.style.borderLeftColor = ev.color;
+      const evColor = getEvColor(ev);
+      if (evColor) {
+        el.style.background = hexToRgba(evColor, 0.22);
+        el.style.color = evColor;
+        el.style.borderLeftColor = evColor;
       }
 
       const title = document.createElement('div');
       title.className = 'week-event-title';
-      title.textContent = ev.title;
+      title.textContent = (ev.emoji ? ev.emoji + ' ' : '') + ev.title;
 
       const time = document.createElement('div');
       time.className = 'week-event-time';
@@ -374,12 +450,15 @@ function renderWeek(area, numDays) {
 // ── CHIP D'ÉVÉNEMENT ──────────────────────────
 function makeEventChip(ev, className) {
   const el = document.createElement('div');
-  el.className = `${className} type-${ev.type}`;
-  el.textContent = (ev.time && className === 'cal-event' ? ev.time + ' ' : '') + ev.title;
+  el.className = className;
+  const prefix = ev.emoji ? ev.emoji + ' ' : '';
+  el.textContent = prefix + (ev.time && className.includes('cal-event') && !className.includes('multiday') ? ev.time + ' ' : '') + ev.title;
   if (ev._recurring) el.title = '🔁 Récurrent';
-  if (ev.color) {
-    el.style.background = hexToRgba(ev.color, 0.2);
-    el.style.color = ev.color;
+  if (ev.dateEnd) el.title = (el.title ? el.title + ' · ' : '') + '📅 Multi-jours';
+  const evColor = getEvColor(ev);
+  if (evColor) {
+    el.style.background = hexToRgba(evColor, 0.2);
+    el.style.color = evColor;
   }
   el.addEventListener('click', e => { e.stopPropagation(); openModal(null, getOriginalEvent(ev)); });
   return el;
@@ -390,11 +469,113 @@ function getOriginalEvent(ev) {
   return ev;
 }
 
+// Retourne la couleur effective d'un événement (couleur manuelle > couleur catégorie)
+function getEvColor(ev) {
+  if (ev.color) return ev.color;
+  if (ev.category) {
+    const cat = categories.find(c => c.id === ev.category);
+    if (cat) return cat.color;
+  }
+  return null;
+}
+
+// ── CATEGORIES ────────────────────────────────
+function renderCategoryList() {
+  const list = document.getElementById('catList');
+  list.innerHTML = '';
+  if (!categories.length) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'color:var(--muted);font-size:11px;padding:4px 6px';
+    empty.textContent = 'Aucune catégorie';
+    list.appendChild(empty);
+    return;
+  }
+  categories.forEach(cat => {
+    const item = document.createElement('div');
+    item.className = 'cat-item';
+
+    const dot = document.createElement('div');
+    dot.className = 'cat-dot';
+    dot.style.background = cat.color;
+
+    const emoji = document.createElement('span');
+    emoji.className = 'cat-emoji';
+    emoji.textContent = cat.emoji || '';
+
+    const name = document.createElement('div');
+    name.className = 'cat-name';
+    name.textContent = cat.name;
+
+    item.appendChild(dot);
+    if (cat.emoji) item.appendChild(emoji);
+    item.appendChild(name);
+    item.addEventListener('click', () => openCatModal(cat));
+    list.appendChild(item);
+  });
+}
+
+function populateCategorySelect() {
+  const sel = document.getElementById('evCategory');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Aucune</option>';
+  categories.forEach(cat => {
+    const opt = document.createElement('option');
+    opt.value = cat.id;
+    opt.textContent = (cat.emoji ? cat.emoji + ' ' : '') + cat.name;
+    sel.appendChild(opt);
+  });
+  sel.value = current;
+}
+
+function openCatModal(cat = null) {
+  editingCatId = cat ? cat.id : null;
+  document.getElementById('catModalTitle').textContent = cat ? 'Modifier la catégorie' : 'Nouvelle catégorie';
+  document.getElementById('catName').value = cat ? cat.name : '';
+  document.getElementById('catEmoji').value = cat ? (cat.emoji || '') : '';
+  document.getElementById('catColor').value = cat ? cat.color : '#7c6af5';
+  document.getElementById('btnCatDelete').style.display = cat ? 'flex' : 'none';
+  document.getElementById('catModalOverlay').classList.add('open');
+}
+
+function closeCatModal() {
+  document.getElementById('catModalOverlay').classList.remove('open');
+}
+
+async function saveCat() {
+  const name = document.getElementById('catName').value.trim();
+  if (!name) { document.getElementById('catName').focus(); return; }
+  const cat = {
+    id: editingCatId || Date.now(),
+    name,
+    emoji: document.getElementById('catEmoji').value.trim(),
+    color: document.getElementById('catColor').value
+  };
+  categories = editingCatId
+    ? categories.map(c => c.id === editingCatId ? cat : c)
+    : [...categories, cat];
+  await saveAll();
+  closeCatModal();
+  renderCategoryList();
+  populateCategorySelect();
+  render();
+}
+
+async function deleteCat() {
+  if (!editingCatId) return;
+  categories = categories.filter(c => c.id !== editingCatId);
+  // Retirer la catégorie des événements qui l'utilisaient
+  events = events.map(e => e.category === editingCatId ? { ...e, category: null } : e);
+  await saveAll();
+  closeCatModal();
+  renderCategoryList();
+  populateCategorySelect();
+  render();
+}
+
 // ── SEARCH ────────────────────────────────────
 function renderSearchResults(query) {
   const results = document.getElementById('searchResults');
   results.innerHTML = '';
-
   const q = query.toLowerCase();
   const matches = events.filter(ev =>
     ev.title.toLowerCase().includes(q) ||
@@ -406,7 +587,7 @@ function renderSearchResults(query) {
   header.textContent = `${matches.length} résultat${matches.length !== 1 ? 's' : ''}`;
   results.appendChild(header);
 
-  if (matches.length === 0) {
+  if (!matches.length) {
     const empty = document.createElement('div');
     empty.className = 'search-empty';
     empty.textContent = 'Aucun événement trouvé';
@@ -420,14 +601,14 @@ function renderSearchResults(query) {
 
     const dot = document.createElement('div');
     dot.className = 'search-dot';
-    dot.style.background = ev.color || getTypeColor(ev.type);
+    dot.style.background = getEvColor(ev) || getTypeColor(ev.type);
 
     const info = document.createElement('div');
     info.className = 'search-item-info';
 
     const title = document.createElement('div');
     title.className = 'search-item-title';
-    title.textContent = ev.title;
+    title.textContent = (ev.emoji ? ev.emoji + ' ' : '') + ev.title;
 
     const meta = document.createElement('div');
     meta.className = 'search-item-meta';
@@ -457,8 +638,7 @@ function renderSearchResults(query) {
 }
 
 function getTypeColor(type) {
-  const colors = { task: '#3ecfaa', event: '#7c6af5', reminder: '#f07070' };
-  return colors[type] || '#9d99b8';
+  return { task:'#3ecfaa', event:'#7c6af5', reminder:'#f07070' }[type] || '#9d99b8';
 }
 
 // ── HELPERS ───────────────────────────────────
@@ -499,6 +679,29 @@ function getMonthCells(year, month) {
     else { day = i - startDow - daysInMonth + 1; m = month+1; y = year; other = true; }
     cells.push({ day, month: m, year: y, other, dateStr: fmtDate(y, m, day) });
   }
+  return cells;
+}
+
+// Mois strict : uniquement les jours du mois, alignés sur le bon jour de la semaine
+
+function getStrictMonthCells(year, month) {
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const firstDay = new Date(year, month, 1);
+  let startDow = firstDay.getDay();
+  startDow = startDow === 0 ? 6 : startDow - 1; // 0=lundi ... 6=dimanche
+
+  const cells = [];
+
+  // Cases vides pour aligner le premier jour
+  for (let i = 0; i < startDow; i++) {
+    cells.push({ day: null, month, year, other: true, empty: true, dateStr: '' });
+  }
+
+  // Jours du mois uniquement
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push({ day: d, month, year, other: false, dateStr: fmtDate(year, month, d) });
+  }
+
   return cells;
 }
 
@@ -553,7 +756,8 @@ function renderUpcoming() {
   upcoming.forEach(ev => {
     const el = document.createElement('div');
     el.className = `upcoming-item type-${ev.type}`;
-    if (ev.color) el.style.borderLeftColor = ev.color;
+    const evColor = getEvColor(ev);
+    if (evColor) el.style.borderLeftColor = evColor;
 
     const d = new Date(ev.date + 'T00:00:00');
     const label = ev.date === todayStr ? "Aujourd'hui"
@@ -562,7 +766,7 @@ function renderUpcoming() {
 
     const titleEl = document.createElement('div');
     titleEl.className = 'ev-title';
-    titleEl.textContent = ev.title + (ev._recurring ? ' 🔁' : '');
+    titleEl.textContent = (ev.emoji ? ev.emoji + ' ' : '') + ev.title + (ev._recurring ? ' 🔁' : '');
 
     const timeEl = document.createElement('div');
     timeEl.className = 'ev-time';
@@ -580,12 +784,15 @@ function openModal(dateStr = null, existingEvent = null, timeStr = '') {
   editingId = existingEvent ? existingEvent.id : null;
   document.getElementById('modalTitle').textContent = existingEvent ? 'Modifier' : 'Nouvel événement';
   document.getElementById('evDate').value = existingEvent ? existingEvent.date : (dateStr || fmtDate(currentYear, currentMonth, selectedDay));
+  document.getElementById('evDateEnd').value = existingEvent ? (existingEvent.dateEnd || '') : '';
   document.getElementById('evTitle').value = existingEvent ? existingEvent.title : '';
-  document.getElementById('evTime').value = existingEvent ? existingEvent.time : timeStr;
+  document.getElementById('evTime').value = existingEvent ? (existingEvent.time || '') : timeStr;
   document.getElementById('evNote').value = existingEvent ? (existingEvent.note || '') : '';
   document.getElementById('evReminder').value = existingEvent ? (existingEvent.reminder || '') : '';
   document.getElementById('evRepeat').value = existingEvent ? (existingEvent.repeat || '') : '';
   document.getElementById('evRepeatEnd').value = existingEvent ? (existingEvent.repeatEnd || '') : '';
+  document.getElementById('evEmoji').value = existingEvent ? (existingEvent.emoji || '') : '';
+  document.getElementById('evCategory').value = existingEvent ? (existingEvent.category || '') : '';
   document.getElementById('repeatEndRow').classList.toggle('visible', !!(existingEvent && existingEvent.repeat));
   selectType(existingEvent ? existingEvent.type : 'task');
   selectColor(existingEvent ? (existingEvent.color || '') : '');
@@ -595,9 +802,10 @@ function openModal(dateStr = null, existingEvent = null, timeStr = '') {
 
 function closeModal() {
   document.getElementById('modalOverlay').classList.remove('open');
-  ['evTitle','evTime','evNote','evRepeatEnd'].forEach(id => document.getElementById(id).value = '');
+  ['evTitle','evTime','evNote','evRepeatEnd','evDateEnd','evEmoji'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('evReminder').value = '';
   document.getElementById('evRepeat').value = '';
+  document.getElementById('evCategory').value = '';
   document.getElementById('repeatEndRow').classList.remove('visible');
   selectType('task');
   selectColor('');
@@ -625,12 +833,16 @@ async function saveEvent() {
   const title = document.getElementById('evTitle').value.trim();
   if (!title) { document.getElementById('evTitle').focus(); return; }
   const repeat = document.getElementById('evRepeat').value;
+  const dateEnd = document.getElementById('evDateEnd').value;
   const ev = {
     id: editingId || Date.now(),
     title,
     type: selectedType,
     color: selectedColor,
+    emoji: document.getElementById('evEmoji').value.trim(),
+    category: document.getElementById('evCategory').value || null,
     date: document.getElementById('evDate').value,
+    dateEnd: dateEnd || null,
     time: document.getElementById('evTime').value,
     note: document.getElementById('evNote').value,
     reminder: document.getElementById('evReminder').value,
@@ -639,7 +851,7 @@ async function saveEvent() {
     _notified: false
   };
   events = editingId ? events.map(e => e.id === editingId ? ev : e) : [...events, ev];
-  await window.agenda.saveEvents(events);
+  await saveAll();
   closeModal();
   render();
   showToast({ ...ev, _saved: true });
@@ -648,7 +860,7 @@ async function saveEvent() {
 async function deleteEvent() {
   if (!editingId) return;
   events = events.filter(e => e.id !== editingId);
-  await window.agenda.saveEvents(events);
+  await saveAll();
   closeModal();
   render();
   showToast({ title: 'Événement supprimé', type: 'task', _saved: true });
@@ -657,7 +869,7 @@ async function deleteEvent() {
 // ── TOAST ─────────────────────────────────────
 function showToast(ev, isReminder = false) {
   const icons = { task:'✓', event:'◆', reminder:'⏰' };
-  document.getElementById('toastIcon').textContent = isReminder ? '🔔' : icons[ev.type] || '📅';
+  document.getElementById('toastIcon').textContent = ev.emoji || (isReminder ? '🔔' : icons[ev.type] || '📅');
   document.getElementById('toastMsg').textContent = isReminder
     ? `Rappel : ${ev.title}${ev.time ? ' à ' + ev.time : ''}`
     : ev._saved ? `"${ev.title}" enregistré !` : `${ev.title}${ev.time ? ' · ' + ev.time : ''}`;
