@@ -39,24 +39,29 @@
       <div class="mini-grid" id="miniGrid"></div>
     </div>
 
-    <!-- SETTINGS -->
     <div class="sidebar-section">
       <div class="section-title">Affichage</div>
       <label class="toggle-row">
         <span>Mois strict</span>
-        <div class="toggle" id="toggleStrict">
-          <div class="toggle-thumb"></div>
-        </div>
+        <div class="toggle" id="toggleStrict"><div class="toggle-thumb"></div></div>
       </label>
     </div>
 
-    <!-- CATEGORIES -->
-    <div class="sidebar-section">
-      <div class="section-title-row">
-        <div class="section-title">Catégories</div>
+    <div class="sidebar-section accordion" id="accordionCat">
+      <div class="accordion-header" id="accordionCatHeader">
+        <div class="accordion-title">
+          <span class="section-title" style="margin-bottom:0">Catégories</span>
+          <span class="accordion-arrow" id="accordionCatArrow">›</span>
+        </div>
         <button class="btn-add-cat" id="btnAddCat">＋</button>
       </div>
-      <div id="catList"></div>
+      <div class="accordion-body" id="accordionCatBody">
+        <div class="cat-filter-all" id="catFilterAll">
+          <div class="cat-dot" style="background:var(--soft)"></div>
+          <div class="cat-name">Tous</div>
+        </div>
+        <div id="catList"></div>
+      </div>
     </div>
 
     <div class="upcoming">
@@ -85,83 +90,127 @@
       <div class="modal-title" id="modalTitle">Nouvel événement</div>
       <button class="modal-close" id="btnModalClose">×</button>
     </div>
+
+    <div class="modal-tabs">
+      <button class="modal-tab active" data-tab="general">Général</button>
+      <button class="modal-tab" data-tab="details">Détails</button>
+    </div>
+
     <div class="modal-body">
-      <div class="form-row">
-        <label>Type</label>
-        <div class="type-selector">
-          <button class="type-opt active-task" data-type="task">✓ Tâche</button>
-          <button class="type-opt" data-type="event">◆ Événement</button>
-          <button class="type-opt" data-type="reminder">⏰ Rappel</button>
-        </div>
-      </div>
-      <div class="form-row">
-        <label>Titre</label>
-        <input type="text" id="evTitle" placeholder="Nom de l'événement...">
-      </div>
-      <div class="form-row-2">
-        <div class="form-row"><label>Date début</label><input type="date" id="evDate"></div>
-        <div class="form-row"><label>Date fin</label><input type="date" id="evDateEnd"></div>
-      </div>
-      <div class="form-row">
-        <label>Heure</label>
-        <input type="time" id="evTime">
-      </div>
-      <div class="form-row-2">
+
+      <!-- TAB GÉNÉRAL -->
+      <div class="tab-panel active" id="tab-general">
         <div class="form-row">
-          <label>Emoji</label>
-          <input type="text" id="evEmoji" placeholder="🎯" maxlength="2">
+          <label>Type</label>
+          <div class="type-selector">
+            <button class="type-opt active-task" data-type="task">✓ Tâche</button>
+            <button class="type-opt" data-type="event">◆ Événement</button>
+            <button class="type-opt" data-type="reminder">⏰ Rappel</button>
+          </div>
         </div>
         <div class="form-row">
-          <label>Catégorie</label>
-          <select id="evCategory">
-            <option value="">Aucune</option>
+          <label>Titre</label>
+          <input type="text" id="evTitle" placeholder="Nom de l'événement...">
+        </div>
+        <div class="form-row">
+          <label>Date</label>
+          <input type="date" id="evDate">
+        </div>
+        <div class="form-row">
+          <label>Heure</label>
+          <input type="time" id="evTime">
+        </div>
+        <div class="form-row">
+          <label>Note</label>
+          <textarea id="evNote" rows="2" placeholder="Détails optionnels..."></textarea>
+        </div>
+        <div class="form-row">
+          <label>Rappel</label>
+          <select id="evReminder">
+            <option value="">Pas de rappel</option>
+            <option value="5">5 min avant</option>
+            <option value="15">15 min avant</option>
+            <option value="30">30 min avant</option>
+            <option value="60">1 heure avant</option>
+            <option value="1440">1 jour avant</option>
           </select>
         </div>
       </div>
-      <div class="form-row">
-        <label>Couleur</label>
-        <div class="color-picker" id="colorPicker">
-          <button class="color-opt selected" data-color="" title="Défaut"></button>
-          <button class="color-opt" data-color="#e85d5d" title="Rouge"></button>
-          <button class="color-opt" data-color="#e8935d" title="Orange"></button>
-          <button class="color-opt" data-color="#d4c23a" title="Jaune"></button>
-          <button class="color-opt" data-color="#5db85d" title="Vert"></button>
-          <button class="color-opt" data-color="#5d9ee8" title="Bleu"></button>
-          <button class="color-opt" data-color="#a05de8" title="Violet"></button>
-          <button class="color-opt" data-color="#e85da0" title="Rose"></button>
-          <button class="color-opt" data-color="#5de8d4" title="Cyan"></button>
+
+      <!-- TAB DÉTAILS -->
+      <div class="tab-panel" id="tab-details">
+        <div class="form-row-2">
+          <div class="form-row">
+            <label>Emoji</label>
+            <div class="emoji-field-wrap">
+              <button class="emoji-trigger" id="emojiTrigger"><span id="emojiPreview">＋</span></button>
+              <span class="emoji-clear" id="emojiClear">×</span>
+            </div>
+          </div>
+          <div class="form-row">
+            <label>Catégorie</label>
+            <select id="evCategory"><option value="">Aucune</option></select>
+          </div>
         </div>
-      </div>
-      <div class="form-row">
-        <label>Répétition</label>
-        <select id="evRepeat">
-          <option value="">Pas de répétition</option>
-          <option value="daily">Chaque jour</option>
-          <option value="weekly">Chaque semaine</option>
-          <option value="monthly">Chaque mois</option>
-          <option value="yearly">Chaque année</option>
-        </select>
-      </div>
-      <div class="form-row" id="repeatEndRow">
-        <label>Fin de répétition</label>
-        <input type="date" id="evRepeatEnd">
-      </div>
-      <div class="form-row">
-        <label>Note</label>
-        <textarea id="evNote" rows="2" placeholder="Détails optionnels..."></textarea>
-      </div>
-      <div class="form-row">
-        <label>Rappel</label>
-        <select id="evReminder">
-          <option value="">Pas de rappel</option>
-          <option value="5">5 min avant</option>
-          <option value="15">15 min avant</option>
-          <option value="30">30 min avant</option>
-          <option value="60">1 heure avant</option>
-          <option value="1440">1 jour avant</option>
-        </select>
+        <div class="form-row">
+          <label>Couleur</label>
+          <div class="color-picker" id="colorPicker">
+            <button class="color-opt selected" data-color=""></button>
+            <button class="color-opt" data-color="#e85d5d"></button>
+            <button class="color-opt" data-color="#e8935d"></button>
+            <button class="color-opt" data-color="#d4c23a"></button>
+            <button class="color-opt" data-color="#5db85d"></button>
+            <button class="color-opt" data-color="#5d9ee8"></button>
+            <button class="color-opt" data-color="#a05de8"></button>
+            <button class="color-opt" data-color="#e85da0"></button>
+            <button class="color-opt" data-color="#5de8d4"></button>
+          </div>
+        </div>
+
+        <!-- DURÉE ou RÉPÉTITION — mutuellement exclusifs -->
+        <div class="form-row">
+          <label>Durée / Répétition</label>
+          <div class="mode-selector">
+            <button class="mode-opt active" data-mode="once">Ponctuel</button>
+            <button class="mode-opt" data-mode="multiday">Multi-jours</button>
+            <button class="mode-opt" data-mode="repeat">Répétition</button>
+          </div>
+        </div>
+
+        <!-- Panneau multi-jours -->
+        <div class="mode-panel" id="panel-multiday">
+          <div class="form-row">
+            <label class="label-with-hint">
+              Date de fin
+              <span class="hint" title="L'événement s'affiche en barre continue du début jusqu'à cette date.">?</span>
+            </label>
+            <input type="date" id="evDateEnd">
+          </div>
+        </div>
+
+        <!-- Panneau répétition -->
+        <div class="mode-panel" id="panel-repeat">
+          <div class="form-row">
+            <label>Fréquence</label>
+            <select id="evRepeat">
+              <option value="daily">Chaque jour</option>
+              <option value="weekly">Chaque semaine</option>
+              <option value="monthly">Chaque mois</option>
+              <option value="yearly">Chaque année</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label class="label-with-hint">
+              Arrêter le
+              <span class="hint" title="Laissez vide pour une répétition sans fin.">?</span>
+            </label>
+            <input type="date" id="evRepeatEnd">
+          </div>
+        </div>
+
       </div>
     </div>
+
     <div class="modal-footer">
       <button class="btn-delete" id="btnDelete">🗑 Supprimer</button>
       <div class="modal-footer-actions">
@@ -170,6 +219,12 @@
       </div>
     </div>
   </div>
+</div>
+
+<!-- EMOJI PICKER -->
+<div class="emoji-picker" id="emojiPicker">
+  <div class="emoji-picker-tabs" id="emojiTabs"></div>
+  <div class="emoji-picker-grid" id="emojiGrid"></div>
 </div>
 
 <!-- MODAL CATÉGORIE -->
@@ -187,7 +242,10 @@
       <div class="form-row-2">
         <div class="form-row">
           <label>Emoji</label>
-          <input type="text" id="catEmoji" placeholder="🏷️" maxlength="2">
+          <div class="emoji-field-wrap">
+            <button class="emoji-trigger" id="catEmojiTrigger"><span id="catEmojiPreview">＋</span></button>
+            <span class="emoji-clear" id="catEmojiClear">×</span>
+          </div>
         </div>
         <div class="form-row">
           <label>Couleur</label>
