@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Notification, ipcMain } = require('electron')
+const { app, BrowserWindow, Notification, ipcMain, dialog } = require('electron')
 const path = require('path')
 const fs = require('fs')
 
@@ -36,7 +36,6 @@ function createWindow() {
 app.whenReady().then(() => {
   createWindow()
 
-  // Vérifie les rappels toutes les minutes
   setInterval(() => {
     const data = loadData()
     const events = Array.isArray(data) ? data : (data.events || [])
@@ -47,10 +46,7 @@ app.whenReady().then(() => {
       const evDate = new Date(`${ev.date}T${ev.time}`)
       const diff = (evDate - now) / 60000
       if (diff > 0 && diff <= parseInt(ev.reminder) && !ev._notified) {
-        new Notification({
-          title: '🔔 Mon Agenda',
-          body: `Rappel : ${ev.title} à ${ev.time}`
-        }).show()
+        new Notification({ title: '🔔 Mon Agenda', body: `Rappel : ${ev.title} à ${ev.time}` }).show()
         ev._notified = true
         changed = true
       }
@@ -68,3 +64,52 @@ app.on('window-all-closed', () => {
 
 ipcMain.handle('load-events', () => loadData())
 ipcMain.handle('save-events', (_, data) => { saveData(data); return true })
+
+// ── EXPORT JSON ──────────────────────────────
+ipcMain.handle('export-json', async (_, data) => {
+  const { filePath, canceled } = await dialog.showSaveDialog({
+    title: 'Exporter les données',
+    defaultPath: `mon-agenda-${new Date().toISOString().slice(0,10)}.json`,
+    filters: [{ name: 'JSON', extensions: ['json'] }]
+  })
+  if (canceled || !filePath) return { success: false }
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2))
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: e.message }
+  }
+})
+
+// ── IMPORT JSON ──────────────────────────────
+ipcMain.handle('import-json', async () => {
+  const { filePaths, canceled } = await dialog.showOpenDialog({
+    title: 'Importer des données',
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+    properties: ['openFile']
+  })
+  if (canceled || !filePaths.length) return { success: false }
+  try {
+    const raw = fs.readFileSync(filePaths[0], 'utf-8')
+    const data = JSON.parse(raw)
+    return { success: true, data }
+  } catch (e) {
+    return { success: false, error: 'Fichier invalide : ' + e.message }
+  }
+})
+
+// ── EXPORT ICAL ───────────────────────────────
+ipcMain.handle('export-ical', async (_, icalStr) => {
+  const { filePath, canceled } = await dialog.showSaveDialog({
+    title: 'Exporter en iCal',
+    defaultPath: `mon-agenda-${new Date().toISOString().slice(0,10)}.ics`,
+    filters: [{ name: 'iCal', extensions: ['ics'] }]
+  })
+  if (canceled || !filePath) return { success: false }
+  try {
+    fs.writeFileSync(filePath, icalStr)
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: e.message }
+  }
+})

@@ -14,6 +14,7 @@ let events = [];
 let categories = [];
 let editingCatId = null;
 let strictMonth = false;
+let currentTheme = 'mocha';
 let currentView = 'month';
 let refDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 let searchQuery = '';
@@ -43,8 +44,10 @@ async function init() {
     events = data.events || [];
     categories = data.categories || [];
     strictMonth = data.strictMonth || false;
+    currentTheme = data.theme || 'mocha';
   }
   bindEvents();
+  applyTheme(currentTheme);
   buildEmojiPicker();
   renderCategoryList();
   updateToggle();
@@ -53,7 +56,16 @@ async function init() {
 }
 
 async function saveAll() {
-  await window.agenda.saveEvents({ events, categories, strictMonth });
+  await window.agenda.saveEvents({ events, categories, strictMonth, theme: currentTheme });
+}
+
+// ── THEME ─────────────────────────────────────
+function applyTheme(theme) {
+  currentTheme = theme;
+  document.documentElement.setAttribute('data-theme', theme);
+  document.querySelectorAll('.theme-swatch').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.theme === theme);
+  });
 }
 
 // ── EMOJI PICKER ──────────────────────────────
@@ -175,6 +187,11 @@ function bindEvents() {
     if (!e.target.closest('.search-wrapper')) document.getElementById('searchResults').classList.remove('open');
   });
 
+  // Export / Import
+  document.getElementById('btnExportJSON').addEventListener('click', exportJSON);
+  document.getElementById('btnImportJSON').addEventListener('click', importJSON);
+  document.getElementById('btnExportICal').addEventListener('click', exportICal);
+
   // Accordion
   document.getElementById('accordionCatHeader').addEventListener('click', e => {
     if (e.target.id === 'btnAddCat' || e.target.closest('#btnAddCat')) return;
@@ -184,6 +201,26 @@ function bindEvents() {
   // Filtre "Tous"
   document.getElementById('catFilterAll').addEventListener('click', () => {
     activeFilter = null; renderCategoryList(); renderFilterBadge(); render();
+  });
+
+  // Bouton Aujourd'hui
+  document.getElementById('btnToday').addEventListener('click', goToToday);
+
+  // Raccourcis clavier
+  document.getElementById('btnShortcuts').addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.getElementById('shortcutsHint').classList.toggle('open');
+  });
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#shortcutsHint') && !e.target.closest('#btnShortcuts')) {
+      document.getElementById('shortcutsHint').classList.remove('open');
+    }
+  });
+  document.addEventListener('keydown', handleKeyboard);
+
+  // Theme swatches
+  document.querySelectorAll('.theme-swatch').forEach(btn => {
+    btn.addEventListener('click', () => { applyTheme(btn.dataset.theme); saveAll(); });
   });
 
   // Toggle strict
@@ -264,6 +301,7 @@ function setView(v) {
 function navigatePrev() {
   if (currentView === 'month') { currentMonth--; if (currentMonth < 0) { currentMonth = 11; currentYear--; } }
   else if (currentView === 'week') refDate = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate() - 7);
+  else if (currentView === 'agenda') refDate = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate() - 14);
   else refDate = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate() - 1);
   render();
 }
@@ -271,7 +309,17 @@ function navigatePrev() {
 function navigateNext() {
   if (currentView === 'month') { currentMonth++; if (currentMonth > 11) { currentMonth = 0; currentYear++; } }
   else if (currentView === 'week') refDate = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate() + 7);
+  else if (currentView === 'agenda') refDate = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate() + 14);
   else refDate = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate() + 1);
+  render();
+}
+
+// ── TODAY ─────────────────────────────────────
+function goToToday() {
+  currentYear = today.getFullYear();
+  currentMonth = today.getMonth();
+  selectedDay = today.getDate();
+  refDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   render();
 }
 
@@ -333,6 +381,7 @@ function render() {
   const area = document.getElementById('calendarArea');
   area.innerHTML = '';
   if (currentView === 'month') renderMonth(area);
+  else if (currentView === 'agenda') renderAgenda(area);
   else renderWeek(area, currentView === 'week' ? 7 : 1);
 }
 
@@ -345,6 +394,9 @@ function updateLabel() {
     label = mon.getMonth() === sun.getMonth()
       ? `${mon.getDate()} – ${sun.getDate()} ${MONTHS[mon.getMonth()]} ${mon.getFullYear()}`
       : `${mon.getDate()} ${MONTHS[mon.getMonth()].slice(0,3)} – ${sun.getDate()} ${MONTHS[sun.getMonth()].slice(0,3)} ${sun.getFullYear()}`;
+  } else if (currentView === 'agenda') {
+    const agendaEnd = new Date(refDate); agendaEnd.setDate(refDate.getDate() + 13);
+    label = `${refDate.getDate()} ${MONTHS[refDate.getMonth()].slice(0,3)} – ${agendaEnd.getDate()} ${MONTHS[agendaEnd.getMonth()].slice(0,3)} ${agendaEnd.getFullYear()}`;
   } else {
     label = `${refDate.getDate()} ${MONTHS[refDate.getMonth()]} ${refDate.getFullYear()}`;
   }
@@ -436,6 +488,140 @@ function buildMultiDayMap(multiDayEvs, cells) {
   return map;
 }
 
+
+// ── VUE AGENDA ────────────────────────────────
+function renderAgenda(area) {
+  const agendaDiv = document.createElement('div');
+  agendaDiv.className = 'agenda-view';
+
+  const startDate = new Date(refDate);
+  const endDate = new Date(refDate); endDate.setDate(refDate.getDate() + 13);
+  const evs = getVisibleEventsRange(startDate, endDate)
+    .sort((a,b) => a.date.localeCompare(b.date) || (a.time||'').localeCompare(b.time||''));
+
+  if (!evs.length) {
+    const empty = document.createElement('div');
+    empty.className = 'agenda-empty';
+    empty.textContent = 'Aucun événement sur cette période';
+    agendaDiv.appendChild(empty);
+    area.appendChild(agendaDiv);
+    return;
+  }
+
+  // Grouper par date
+  const groups = {};
+  evs.forEach(ev => {
+    if (!groups[ev.date]) groups[ev.date] = [];
+    groups[ev.date].push(ev);
+  });
+
+  const todayStr = dateToStr(today);
+  Object.keys(groups).sort().forEach(dateStr => {
+    const d = new Date(dateStr + 'T00:00:00');
+    const group = document.createElement('div');
+    group.className = 'agenda-day-group' + (dateStr === todayStr ? ' is-today' : '');
+
+    const hdr = document.createElement('div'); hdr.className = 'agenda-day-header';
+    const num = document.createElement('div'); num.className = 'agenda-day-num'; num.textContent = d.getDate();
+    const info = document.createElement('div'); info.className = 'agenda-day-info';
+    const name = document.createElement('div'); name.className = 'agenda-day-name';
+    name.textContent = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'][d.getDay()];
+    const month = document.createElement('div'); month.className = 'agenda-day-month';
+    month.textContent = MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+    info.appendChild(name); info.appendChild(month);
+    hdr.appendChild(num); hdr.appendChild(info);
+    group.appendChild(hdr);
+
+    const divider = document.createElement('div'); divider.className = 'agenda-day-divider';
+    group.appendChild(divider);
+
+    groups[dateStr].forEach(ev => {
+      const evDiv = document.createElement('div');
+      evDiv.className = 'agenda-event type-' + ev.type;
+      const evColor = getEvColor(ev);
+      if (evColor) { evDiv.style.borderLeftColor = evColor; }
+
+      const timeDiv = document.createElement('div'); timeDiv.className = 'agenda-event-time';
+      timeDiv.textContent = ev.time || 'Toute la journée';
+
+      const body = document.createElement('div'); body.className = 'agenda-event-body';
+      const titleDiv = document.createElement('div'); titleDiv.className = 'agenda-event-title';
+      titleDiv.textContent = (ev.emoji ? ev.emoji + ' ' : '') + ev.title;
+
+      const meta = document.createElement('div'); meta.className = 'agenda-event-meta';
+      const parts = [];
+      if (ev._recurring) parts.push('🔁 Récurrent');
+      if (ev.dateEnd) parts.push('→ ' + ev.dateEnd);
+      const cat = ev.category ? categories.find(c => c.id === ev.category) : null;
+      if (cat) parts.push((cat.emoji ? cat.emoji + ' ' : '') + cat.name);
+      if (ev.note) parts.push(ev.note.slice(0, 40) + (ev.note.length > 40 ? '…' : ''));
+      meta.textContent = parts.join(' · ');
+
+      body.appendChild(titleDiv);
+      if (parts.length) body.appendChild(meta);
+      evDiv.appendChild(timeDiv); evDiv.appendChild(body);
+      evDiv.addEventListener('click', () => openModal(null, getOriginalEvent(ev)));
+      group.appendChild(evDiv);
+    });
+
+    agendaDiv.appendChild(group);
+  });
+
+  area.appendChild(agendaDiv);
+}
+
+// ── CHEVAUCHEMENT ─────────────────────────────
+// Calcule les colonnes pour les events qui se chevauchent
+function computeOverlapColumns(dayEvs) {
+  // Trier par heure de début
+  const sorted = [...dayEvs].sort((a,b) => (a.time||'').localeCompare(b.time||''));
+  const columns = []; // chaque colonne = tableau d'events
+
+  sorted.forEach(ev => {
+    const [h, m] = (ev.time||'00:00').split(':').map(Number);
+    const startMin = h * 60 + m;
+    const endMin = startMin + 60; // durée par défaut 1h
+
+    // Trouver la première colonne où l'event ne chevauche pas
+    let placed = false;
+    for (let col = 0; col < columns.length; col++) {
+      const last = columns[col][columns[col].length - 1];
+      const [lh, lm] = (last.time||'00:00').split(':').map(Number);
+      const lastEnd = lh * 60 + lm + 60;
+      if (startMin >= lastEnd) {
+        columns[col].push(ev);
+        ev._col = col;
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      ev._col = columns.length;
+      columns.push([ev]);
+    }
+  });
+
+  // Calculer le nombre total de colonnes pour chaque event
+  sorted.forEach(ev => {
+    const [h, m] = (ev.time||'00:00').split(':').map(Number);
+    const startMin = h * 60 + m;
+    const endMin = startMin + 60;
+    let maxCol = ev._col;
+    sorted.forEach(other => {
+      if (other === ev) return;
+      const [oh, om] = (other.time||'00:00').split(':').map(Number);
+      const otherStart = oh * 60 + om;
+      const otherEnd = otherStart + 60;
+      if (startMin < otherEnd && endMin > otherStart) {
+        maxCol = Math.max(maxCol, other._col || 0);
+      }
+    });
+    ev._totalCols = maxCol + 1;
+  });
+
+  return sorted;
+}
+
 // ── VUE SEMAINE / JOUR ────────────────────────
 function renderWeek(area, numDays) {
   const HOUR_H = 52;
@@ -492,11 +678,20 @@ function renderWeek(area, numDays) {
       const min = (y % HOUR_H) < 26 ? '00' : '30';
       openModal(dateToStr(d), null, `${String(Math.min(hour,23)).padStart(2,'0')}:${min}`);
     });
-    visibleEvs.filter(e => e.date === dateToStr(d) && e.time).forEach(ev => {
+    const timedEvs = visibleEvs.filter(e => e.date === dateToStr(d) && e.time);
+    const withCols = computeOverlapColumns(timedEvs);
+    withCols.forEach(ev => {
       const [h, m] = ev.time.split(':').map(Number);
       const top = h * HOUR_H + (m / 60) * HOUR_H;
+      const totalCols = ev._totalCols || 1;
+      const col_idx = ev._col || 0;
+      const width = 100 / totalCols;
       const el = document.createElement('div'); el.className = `week-event type-${ev.type}`;
-      el.style.top = top + 'px'; el.style.height = HOUR_H + 'px';
+      el.style.top = top + 'px';
+      el.style.height = HOUR_H + 'px';
+      el.style.left = (col_idx * width) + '%';
+      el.style.right = ((totalCols - col_idx - 1) * width) + '%';
+      el.style.width = 'auto';
       const evColor = getEvColor(ev);
       if (evColor) { el.style.background = hexToRgba(evColor, 0.22); el.style.color = evColor; el.style.borderLeftColor = evColor; }
       const title = document.createElement('div'); title.className = 'week-event-title';
@@ -799,6 +994,38 @@ async function saveEvent() {
     document.querySelectorAll('.tab-panel').forEach((p,i) => p.classList.toggle('active', i === 0));
     document.getElementById('evTitle').focus(); return;
   }
+
+  // Validation date fin > date début (mode multiday)
+  if (selectedMode === 'multiday') {
+    const dateStart = document.getElementById('evDate').value;
+    const dateEnd = document.getElementById('evDateEnd').value;
+    const errEl = document.getElementById('dateEndError');
+    if (dateEnd && dateEnd <= dateStart) {
+      document.querySelectorAll('.modal-tab').forEach((t,i) => t.classList.toggle('active', i === 1));
+      document.querySelectorAll('.tab-panel').forEach((p,i) => p.classList.toggle('active', i === 1));
+      document.getElementById('evDateEnd').classList.add('error');
+      if (errEl) { errEl.textContent = 'La date de fin doit être après la date de début.'; errEl.classList.add('visible'); }
+      return;
+    }
+    if (errEl) { errEl.classList.remove('visible'); }
+    document.getElementById('evDateEnd').classList.remove('error');
+  }
+
+  // Validation repeatEnd > date début (mode repeat)
+  if (selectedMode === 'repeat') {
+    const dateStart = document.getElementById('evDate').value;
+    const repeatEnd = document.getElementById('evRepeatEnd').value;
+    const errEl = document.getElementById('repeatEndError');
+    if (repeatEnd && repeatEnd <= dateStart) {
+      document.querySelectorAll('.modal-tab').forEach((t,i) => t.classList.toggle('active', i === 1));
+      document.querySelectorAll('.tab-panel').forEach((p,i) => p.classList.toggle('active', i === 1));
+      document.getElementById('evRepeatEnd').classList.add('error');
+      if (errEl) { errEl.textContent = "La date d'arrêt doit être après la date de début."; errEl.classList.add('visible'); }
+      return;
+    }
+    if (errEl) { errEl.classList.remove('visible'); }
+    document.getElementById('evRepeatEnd').classList.remove('error');
+  }
   const ev = {
     id: editingId || Date.now(), title, type: selectedType, color: selectedColor, emoji: selectedEmoji,
     category: document.getElementById('evCategory').value || null,
@@ -821,6 +1048,120 @@ async function deleteEvent() {
   events = events.filter(e => e.id !== editingId);
   await saveAll(); closeModal(); render();
   showToast({ title: 'Événement supprimé', type: 'task', _saved: true });
+}
+
+// ── KEYBOARD SHORTCUTS ───────────────────────
+function handleKeyboard(e) {
+  const tag = document.activeElement.tagName.toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+  const modalOpen = document.getElementById('modalOverlay').classList.contains('open');
+  const catModalOpen = document.getElementById('catModalOverlay').classList.contains('open');
+  if (e.key === 'Escape') {
+    if (modalOpen) closeModal();
+    if (catModalOpen) closeCatModal();
+    document.getElementById('shortcutsHint').classList.remove('open');
+    document.getElementById('searchResults').classList.remove('open');
+    return;
+  }
+  if (modalOpen || catModalOpen) return;
+  switch (e.key.toLowerCase()) {
+    case 'n': openModal(); break;
+    case 't': goToToday(); break;
+    case 'm': setView('month'); break;
+    case 'w': setView('week'); break;
+    case 'd': setView('day'); break;
+    case 'a': setView('agenda'); break;
+    case 'arrowleft': navigatePrev(); break;
+    case 'arrowright': navigateNext(); break;
+  }
+}
+
+
+// ── EXPORT / IMPORT ───────────────────────────
+async function exportJSON() {
+  const result = await window.agenda.exportJSON({ events, categories, strictMonth, theme: currentTheme });
+  if (result.success) showToast({ title: 'Export JSON réussi !', type: 'task', emoji: '⬇', _saved: true });
+  else if (result.error) showToast({ title: 'Erreur export', type: 'reminder', emoji: '❌', _saved: true });
+}
+
+async function importJSON() {
+  const result = await window.agenda.importJSON();
+  if (!result.success) return;
+  const data = result.data;
+  if (!data) return;
+  // Support ancien format tableau
+  if (Array.isArray(data)) {
+    events = data; categories = []; strictMonth = false;
+  } else {
+    events = data.events || [];
+    categories = data.categories || [];
+    strictMonth = data.strictMonth || false;
+    if (data.theme) { currentTheme = data.theme; applyTheme(currentTheme); }
+  }
+  await saveAll();
+  renderCategoryList();
+  updateToggle();
+  populateCategorySelect();
+  render();
+  showToast({ title: `Import réussi — ${events.length} événement(s)`, type: 'task', emoji: '⬆', _saved: true });
+}
+
+async function exportICal() {
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Mon Agenda//FR',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+  ];
+
+  events.forEach(ev => {
+    const uid = ev.id + '@mon-agenda';
+    const dtstart = ev.time
+      ? ev.date.replace(/-/g,'') + 'T' + ev.time.replace(':','') + '00'
+      : ev.date.replace(/-/g,'');
+    const dtend = ev.dateEnd
+      ? ev.dateEnd.replace(/-/g,'')
+      : (ev.time
+          ? ev.date.replace(/-/g,'') + 'T' + ev.time.replace(':','') + '00'
+          : ev.date.replace(/-/g,''));
+    const summary = (ev.emoji ? ev.emoji + ' ' : '') + ev.title;
+    const created = new Date(typeof ev.id === 'number' ? ev.id : Date.now())
+      .toISOString().replace(/[-:]/g,'').slice(0,15) + 'Z';
+
+    lines.push('BEGIN:VEVENT');
+    lines.push('UID:' + uid);
+    lines.push('SUMMARY:' + escapeIcal(summary));
+    if (ev.time) {
+      lines.push('DTSTART:' + dtstart);
+      lines.push('DTEND:' + dtend);
+    } else {
+      lines.push('DTSTART;VALUE=DATE:' + dtstart);
+      lines.push('DTEND;VALUE=DATE:' + dtend);
+    }
+    if (ev.note) lines.push('DESCRIPTION:' + escapeIcal(ev.note));
+    lines.push('DTSTAMP:' + created);
+    if (ev.repeat) {
+      const freqMap = { daily:'DAILY', weekly:'WEEKLY', monthly:'MONTHLY', yearly:'YEARLY' };
+      let rrule = 'RRULE:FREQ=' + freqMap[ev.repeat];
+      if (ev.repeatEnd) rrule += ';UNTIL=' + ev.repeatEnd.replace(/-/g,'');
+      lines.push(rrule);
+    }
+    lines.push('END:VEVENT');
+  });
+
+  lines.push('END:VCALENDAR');
+  const icalStr = lines.join('
+');
+
+  const result = await window.agenda.exportICal(icalStr);
+  if (result.success) showToast({ title: 'Export iCal réussi !', type: 'task', emoji: '📅', _saved: true });
+  else if (result.error) showToast({ title: 'Erreur export', type: 'reminder', emoji: '❌', _saved: true });
+}
+
+function escapeIcal(str) {
+  return str.replace(/\/g,'\\').replace(/;/g,'\;').replace(/,/g,'\,').replace(/
+/g,'\n');
 }
 
 function showToast(ev, isReminder = false) {

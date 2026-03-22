@@ -23,7 +23,10 @@
       <button class="view-btn active" data-view="month">Mois</button>
       <button class="view-btn" data-view="week">Semaine</button>
       <button class="view-btn" data-view="day">Jour</button>
+      <button class="view-btn" data-view="agenda">Agenda</button>
     </div>
+    <button class="btn-today" id="btnToday">Aujourd'hui</button>
+    <button class="btn-shortcuts" id="btnShortcuts" title="Raccourcis clavier">?</button>
     <button class="btn-new" id="btnNew">＋ Nouveau</button>
   </div>
 </div>
@@ -45,19 +48,47 @@
         <span>Mois strict</span>
         <div class="toggle" id="toggleStrict"><div class="toggle-thumb"></div></div>
       </label>
+      <div class="theme-row">
+        <span>Thème</span>
+        <div class="theme-swatches">
+          <button class="theme-swatch" data-theme="mocha" title="Mocha" ></button>
+          <button class="theme-swatch" data-theme="macchiato" title="Macchiato" ></button>
+          <button class="theme-swatch" data-theme="frappe" title="Frappé" ></button>
+          <button class="theme-swatch" data-theme="latte" title="Latte" ></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- IMPORT / EXPORT -->
+    <div class="sidebar-section">
+      <div class="section-title">Données</div>
+      <div class="data-actions">
+        <button class="btn-data" id="btnExportJSON">⬇ JSON</button>
+        <button class="btn-data" id="btnImportJSON">⬆ JSON</button>
+        <button class="btn-data" id="btnExportICal">⬇ iCal</button>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-title">Données</div>
+      <div class="data-btns">
+        <button class="btn-data" id="btnExportJSON" title="Exporter en JSON">⬇ JSON</button>
+        <button class="btn-data" id="btnImportJSON" title="Importer un JSON">⬆ JSON</button>
+        <button class="btn-data" id="btnExportICal" title="Exporter en iCal">⬇ iCal</button>
+      </div>
     </div>
 
     <div class="sidebar-section accordion" id="accordionCat">
       <div class="accordion-header" id="accordionCatHeader">
         <div class="accordion-title">
-          <span class="section-title" style="margin-bottom:0">Catégories</span>
+          <span class="section-title" >Catégories</span>
           <span class="accordion-arrow" id="accordionCatArrow">›</span>
         </div>
         <button class="btn-add-cat" id="btnAddCat">＋</button>
       </div>
       <div class="accordion-body" id="accordionCatBody">
         <div class="cat-filter-all" id="catFilterAll">
-          <div class="cat-dot" style="background:var(--soft)"></div>
+          <div class="cat-dot" ></div>
           <div class="cat-name">Tous</div>
         </div>
         <div id="catList"></div>
@@ -185,6 +216,7 @@
               <span class="hint" title="L'événement s'affiche en barre continue du début jusqu'à cette date.">?</span>
             </label>
             <input type="date" id="evDateEnd">
+            <span class="field-error" id="dateEndError"></span>
           </div>
         </div>
 
@@ -205,6 +237,7 @@
               <span class="hint" title="Laissez vide pour une répétition sans fin.">?</span>
             </label>
             <input type="date" id="evRepeatEnd">
+          <span class="field-error" id="repeatEndError"></span>
           </div>
         </div>
 
@@ -261,6 +294,18 @@
       </div>
     </div>
   </div>
+</div>
+
+<!-- KEYBOARD SHORTCUTS TOOLTIP -->
+<div class="shortcuts-hint" id="shortcutsHint">
+  <div class="shortcut-row"><kbd>N</kbd> Nouvel événement</div>
+  <div class="shortcut-row"><kbd>T</kbd> Aujourd'hui</div>
+  <div class="shortcut-row"><kbd>M</kbd> Vue Mois</div>
+  <div class="shortcut-row"><kbd>W</kbd> Vue Semaine</div>
+  <div class="shortcut-row"><kbd>D</kbd> Vue Jour</div>
+  <div class="shortcut-row"><kbd>A</kbd> Vue Agenda</div>
+  <div class="shortcut-row"><kbd>←</kbd><kbd>→</kbd> Naviguer</div>
+  <div class="shortcut-row"><kbd>Esc</kbd> Fermer</div>
 </div>
 
 <div class="toast" id="toast">
