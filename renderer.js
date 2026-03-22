@@ -1151,8 +1151,7 @@ async function exportICal() {
   });
 
   lines.push('END:VCALENDAR');
-  const icalStr = lines.join('
-');
+  const icalStr = lines.join('\r\n');
 
   const result = await window.agenda.exportICal(icalStr);
   if (result.success) showToast({ title: 'Export iCal réussi !', type: 'task', emoji: '📅', _saved: true });
@@ -1160,8 +1159,7 @@ async function exportICal() {
 }
 
 function escapeIcal(str) {
-  return str.replace(/\/g,'\\').replace(/;/g,'\;').replace(/,/g,'\,').replace(/
-/g,'\n');
+  return str.replace(/\\\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
 }
 
 function showToast(ev, isReminder = false) {
