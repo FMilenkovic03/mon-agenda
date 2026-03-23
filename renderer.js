@@ -187,10 +187,18 @@ function bindEvents() {
     if (!e.target.closest('.search-wrapper')) document.getElementById('searchResults').classList.remove('open');
   });
 
-  // Export / Import
-  document.getElementById('btnExportJSON').addEventListener('click', exportJSON);
-  document.getElementById('btnImportJSON').addEventListener('click', importJSON);
-  document.getElementById('btnExportICal').addEventListener('click', exportICal);
+  // Messages depuis le menu natif Electron
+  window.agenda.onMessage('import-data', (data) => {
+    if (Array.isArray(data)) { events = data; categories = []; strictMonth = false; }
+    else { events = data.events || []; categories = data.categories || []; strictMonth = data.strictMonth || false; if (data.theme) { currentTheme = data.theme; applyTheme(currentTheme); } }
+    renderCategoryList(); updateToggle(); populateCategorySelect(); render();
+    showToast({ title: `Import réussi — ${events.length} événement(s)`, type: 'task', emoji: '⬆', _saved: true });
+  });
+  window.agenda.onMessage('toast', (ev) => showToast({ ...ev, _saved: true }));
+  window.agenda.onMessage('request-ical-export', () => exportICal());
+  window.agenda.onMessage('set-view', (v) => setView(v));
+  window.agenda.onMessage('go-today', () => goToToday());
+  window.agenda.onMessage('set-theme', (theme) => { applyTheme(theme); saveAll(); });
 
   // Accordion
   document.getElementById('accordionCatHeader').addEventListener('click', e => {
@@ -217,11 +225,6 @@ function bindEvents() {
     }
   });
   document.addEventListener('keydown', handleKeyboard);
-
-  // Theme swatches
-  document.querySelectorAll('.theme-swatch').forEach(btn => {
-    btn.addEventListener('click', () => { applyTheme(btn.dataset.theme); saveAll(); });
-  });
 
   // Toggle strict
   document.getElementById('toggleStrict').addEventListener('click', () => {
