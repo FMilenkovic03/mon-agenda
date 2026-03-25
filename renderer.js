@@ -285,7 +285,7 @@ function renderFilterBadge() {
     document.querySelector('.upcoming').parentNode.insertBefore(badge, document.querySelector('.upcoming'));
   }
   if (activeFilter) {
-    const cat = categories.find(c => c.id === activeFilter);
+    const cat = categories.find(c => String(c.id) === String(activeFilter));
     document.getElementById('filterBadgeLabel').textContent = (cat?.emoji ? cat.emoji + ' ' : '') + (cat?.name || '');
     badge.classList.add('visible');
   } else {
@@ -372,7 +372,7 @@ function expandEvents(evList, fromDate, toDate) {
 
 function getVisibleEventsRange(fromDate, toDate) {
   let evs = expandEvents(events, fromDate, toDate);
-  if (activeFilter) evs = evs.filter(e => e.category === activeFilter);
+  if (activeFilter) evs = evs.filter(e => String(e.category) === String(activeFilter));
   return evs;
 }
 
@@ -426,11 +426,11 @@ function renderMonth(area) {
   const recurringEvs = expandEvents(events.filter(e => e.repeat), firstCell, lastCell);
   const normalEvs = events.filter(e => !e.repeat && e.date >= dateToStr(firstCell) && e.date <= dateToStr(lastCell));
   let allEvs = [...normalEvs, ...recurringEvs];
-  if (activeFilter) allEvs = allEvs.filter(e => e.category === activeFilter);
+  if (activeFilter) allEvs = allEvs.filter(e => String(e.category) === String(activeFilter));
 
   // Multi-jours : calculer la map UNE SEULE FOIS à partir des événements non-récurrents avec dateEnd
   const multiDayEvs = events.filter(e => e.dateEnd && e.dateEnd > e.date);
-  const multiDayMap = buildMultiDayMap(activeFilter ? multiDayEvs.filter(e => e.category === activeFilter) : multiDayEvs, cells);
+  const multiDayMap = buildMultiDayMap(activeFilter ? multiDayEvs.filter(e => String(e.category) === String(activeFilter)) : multiDayEvs, cells);
 
   const grid = document.createElement('div');
   grid.className = 'cal-grid';
@@ -735,7 +735,7 @@ function getOriginalEvent(ev) {
 
 function getEvColor(ev) {
   if (ev.color) return ev.color;
-  if (ev.category) { const cat = categories.find(c => c.id === ev.category); if (cat) return cat.color; }
+  if (ev.category) { const cat = categories.find(c => String(c.id) === String(ev.category)); if (cat) return cat.color; }
   return null;
 }
 
@@ -753,7 +753,7 @@ function renderCategoryList() {
 
   categories.forEach(cat => {
     const item = document.createElement('div');
-    item.className = 'cat-item' + (activeFilter === cat.id ? ' active' : '');
+    item.className = 'cat-item' + (String(activeFilter) === String(cat.id) ? ' active' : '');
     const dot = document.createElement('div'); dot.className = 'cat-dot'; dot.style.background = cat.color;
     const name = document.createElement('div'); name.className = 'cat-name'; name.textContent = cat.name;
     const edit = document.createElement('button'); edit.className = 'cat-edit'; edit.textContent = '✎'; edit.title = 'Modifier';
@@ -762,7 +762,7 @@ function renderCategoryList() {
     item.appendChild(name); item.appendChild(edit);
     edit.addEventListener('click', e => { e.stopPropagation(); openCatModal(cat); });
     item.addEventListener('click', () => {
-      activeFilter = activeFilter === cat.id ? null : cat.id;
+      activeFilter = String(activeFilter) === String(cat.id) ? null : cat.id;
       renderCategoryList(); renderFilterBadge(); render();
     });
     list.appendChild(item);
@@ -809,7 +809,7 @@ async function deleteCat() {
   if (!editingCatId) return;
   categories = categories.filter(c => c.id !== editingCatId);
   events = events.map(e => e.category === editingCatId ? { ...e, category: null } : e);
-  if (activeFilter === editingCatId) { activeFilter = null; renderFilterBadge(); }
+  if (String(activeFilter) === String(editingCatId)) { activeFilter = null; renderFilterBadge(); }
   await saveAll(); closeCatModal(); renderCategoryList(); populateCategorySelect(); render();
 }
 

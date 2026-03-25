@@ -1,11 +1,39 @@
 {
   "name": "mon-agenda",
   "version": "1.0.0",
+  "description": "Agenda personnel",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build": "electron-builder --win --x64"
+  },
+  "build": {
+    "appId": "com.monagenda.app",
+    "productName": "Mon Agenda",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "style.css",
+      "renderer.js",
+      "assets/**"
+    ]
   },
   "devDependencies": {
-    "electron": "^24.0.0"
+    "electron": "^41.0.3",
+    "electron-builder": "^26.8.1"
   }
 }

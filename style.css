@@ -253,7 +253,9 @@ kbd { display:inline-flex; align-items:center; justify-content:center; backgroun
 .cat-item:hover .cat-edit { opacity:1; }
 
 /* UPCOMING */
-.upcoming { flex:1; padding:14px; min-height:80px; }
+.upcoming { flex:1; padding:14px; min-height:80px; overflow-y:auto; padding-bottom:70px; }
+.upcoming::-webkit-scrollbar { width:3px; }
+.upcoming::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
 .upcoming-item { padding:9px 11px; border-radius:9px; background:var(--surface2); border:1px solid var(--border); margin-bottom:7px; cursor:pointer; transition:all 0.12s; border-left:3px solid transparent; }
 .upcoming-item:hover { background:var(--surface3); transform:translateX(2px); }
 .upcoming-item.type-task { border-left-color:var(--teal); }
